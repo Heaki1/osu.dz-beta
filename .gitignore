@@ -32,3 +32,10 @@ Thumbs.db
 
 # Player-uploaded profile banners
 server/uploads/profile-banners/
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+*~
+
