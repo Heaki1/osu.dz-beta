@@ -1,4 +1,4 @@
-﻿/**
+/**
  * App.tsx â€” additions for the player profile page.
  *
  * DIFF SUMMARY vs the original file (every other line is unchanged):
@@ -382,12 +382,15 @@ export default function App() {
     }
     setActionError(null);
 
-    const favoritesResult = await api.favorites.list();
-    if (favoritesResult.ok) {
-      setFavorites(favoritesResult.data);
-    } else {
-      setActionError(favoritesResult.error);
-    }
+    setFavorites((current) => {
+      if (favoritedIds.has(difficultyId)) {
+        return current.filter((favorite) => favorite.difficultyId !== difficultyId);
+      }
+
+      return [result.data.favorite, ...current.filter(
+        (favorite) => favorite.difficultyId !== difficultyId,
+      )];
+    });
   };
 
   const handleImportFavorites = async (): Promise<string | null> => {
