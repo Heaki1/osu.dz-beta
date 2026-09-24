@@ -13,6 +13,7 @@ import {
   Archive,
   BarChart2,
   ShoppingBag,
+  Swords,
 } from 'lucide-react';
 
 export interface AuthUser {
@@ -73,6 +74,7 @@ const navItems: { key: PlatformPage; label: string; icon: React.ReactNode }[] = 
   { key: 'vote',      label: 'Vote',      icon: <Trophy className="w-4 h-4" /> },
   { key: 'search',    label: 'Search',    icon: <Search className="w-4 h-4" /> },
   { key: 'rankings',  label: 'Rankings',  icon: <BarChart2 className="w-4 h-4" /> },
+  { key: 'compare',   label: 'Compare',   icon: <Swords className="w-4 h-4" /> },
   { key: 'shop',      label: 'Shop',      icon: <ShoppingBag className="w-4 h-4" /> },
   { key: 'archive',   label: 'Archive',   icon: <Archive className="w-4 h-4" /> },
 ];

@@ -50,14 +50,14 @@ function PersonalProgress({ user }: { user: AuthUser | null }) {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-5 mb-8">
-      <section className="rounded-2xl border border-slate-800 bg-[#0d1526] p-5">
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <div><p className="text-[10px] uppercase tracking-widest text-slate-600 font-mono">Player Progression</p><p className="text-lg font-black text-white">Level {p.level}</p></div>
-          <span className="text-xs font-mono text-amber-400">{p.dzpp.toLocaleString()} DZPP</span>
+    <div className="mb-10 border-y border-slate-800/80">
+      <section className="border-b lg:border-b-0 lg:border-r border-slate-800/80 px-1 py-6 lg:pr-7">
+        <div className="flex items-end justify-between gap-4 mb-5">
+          <div><p className="text-[9px] uppercase tracking-[0.22em] text-slate-600 font-mono">My progression</p><h2 className="mt-1 text-2xl font-black text-white">Level {p.level}</h2></div>
+          <p className="font-mono text-sm font-bold text-amber-400">{p.dzpp.toLocaleString()} <span className="text-slate-600">DZPP</span></p>
         </div>
-        <div className="h-2 rounded-full bg-slate-900 overflow-hidden"><div className="h-full bg-amber-400" style={{ width: `${percent}%` }} /></div>
-        <div className="flex justify-between mt-2 text-[10px] font-mono text-slate-600"><span>{percent}% to next level</span><span>{p.nextLevelDzpp.toLocaleString()} DZPP</span></div>
+        <div className="h-1.5 bg-slate-900"><div className="h-full bg-amber-400" style={{ width: percent + '%' }} /></div>
+        <div className="mt-2 flex justify-between font-mono text-[9px] uppercase tracking-wider text-slate-600"><span>{percent}% complete</span><span>{p.nextLevelDzpp.toLocaleString()} DZPP next level</span></div>
         <div className="grid grid-cols-4 gap-2 mt-5 text-center">
           <div><p className="text-lg font-black text-white">{data.streak.currentWins}</p><p className="text-[9px] text-slate-600 uppercase">Win streak</p></div>
           <div><p className="text-lg font-black text-white">{data.streak.bestWins}</p><p className="text-[9px] text-slate-600 uppercase">Best streak</p></div>
