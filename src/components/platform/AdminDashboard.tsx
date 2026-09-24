@@ -2662,7 +2662,7 @@ setConfig(c.data);
         title="Discord Integration"
         description="Round lifecycle announcements use the server-side DISCORD_WEBHOOK. The webhook itself is never exposed in the browser."
       >
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-4 border-y border-slate-800/80 py-4">
           <div>
             <p className="text-sm font-bold text-white">Connection test</p>
             <p className="text-xs text-slate-500 mt-1">Send a single test message to the configured channel.</p>
@@ -2676,7 +2676,7 @@ setConfig(c.data);
               setDiscordMessage(result.ok ? 'Test announcement sent.' : result.error);
               setDiscordBusy(false);
             }}
-            className="rounded-lg bg-indigo-500/15 border border-indigo-500/25 px-3 py-2 text-xs font-black text-indigo-300 hover:bg-indigo-500/25 disabled:opacity-40"
+            className="rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-xs font-black text-slate-300 hover:border-amber-400/40 hover:text-amber-300 disabled:opacity-40"
           >
             {discordBusy ? 'Sending…' : 'Send test'}
           </button>

@@ -609,8 +609,8 @@ function DzppHistoryGraph({ rounds }: { rounds: ApiPlayerDzppRound[] }) {
   const max = Math.max(...points.map((p) => p.y), 1);
   const width = 720; const height = 180; const pad = 18;
   const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${pad + p.x * (width - pad * 2)} ${height - pad - (p.y / max) * (height - pad * 2)}`).join(' ');
-  return <section className="mb-4 overflow-hidden rounded-md border border-[#292d45] bg-[#0d1220] p-4">
-    <div className="flex items-center justify-between mb-3"><div><p className="text-[10px] uppercase tracking-widest text-slate-500 font-mono">DZPP history</p><p className="text-sm font-black text-white">Cumulative progression</p></div><span className="text-[10px] font-mono text-amber-400">{total.toLocaleString()} DZPP</span></div>
+  return <section className="mb-4 overflow-hidden border-y border-[#292d45] bg-[#0d1220]/70 px-1 py-5">
+    <div className="flex items-end justify-between mb-3"><div><p className="text-[9px] uppercase tracking-[0.22em] text-slate-600 font-mono">Career progression</p><p className="text-sm font-black text-white mt-1">DZPP history</p></div><span className="text-xs font-mono font-bold text-amber-400">{total.toLocaleString()} <span className="text-slate-600">DZPP</span></span></div>
     <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-44" role="img" aria-label="Cumulative DZPP history">
       <path d={`M ${pad} ${height - pad} L ${width - pad} ${height - pad}`} stroke="currentColor" className="text-slate-800" />
       <path d={path} fill="none" stroke="currentColor" strokeWidth="3" className="text-amber-400" />
