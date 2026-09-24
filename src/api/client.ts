@@ -356,6 +356,24 @@ export interface ApiPlayerDzppRound {
 maps: ApiPlayerDzppMap[];
 }
 
+export interface ApiActivityEvent {
+  id: number;
+  userId: number | null;
+  username: string | null;
+  avatarUrl: string | null;
+  roundId: number | null;
+  roundNumber: number | null;
+  type: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface ApiProgression {
+  progression: { dzpp: number; rounds: number; wins: number; best: number | null; submissions: number; votes: number; level: number; levelProgress: number; nextLevelDzpp: number };
+  streak: { currentWins: number; bestWins: number; rounds: number };
+  mapping: { submissions: number; approved: number; votes_received: number; rounds: number };
+}
+
 /**
  * One vote with the account that cast it — GET /admin/votes only.
  *
@@ -1239,6 +1257,7 @@ export const api = {
 
     /** Read-only server configuration — what is set, never the secrets themselves. */
     config: () => get<ApiAdminConfig>("/admin/config"),
+    discordTest: () => send<{ ok: boolean }>("POST", "/admin/discord/test"),
 
     /** The submission rules, with who last changed them. */
     settings: () => get<ApiAdminSiteSettings>("/admin/settings"),
@@ -1338,7 +1357,7 @@ export const api = {
       send<TransactionResult>("POST", "/shop/steal", { itemId }),
   },
   // ── Players ────────────────────────────────────────────────────────────────
-players: {
+  players: {
   profile: (username: string) =>
     get<ApiPlayerProfile>(`/players/${encodeURIComponent(username)}`),
 
@@ -1351,7 +1370,15 @@ players: {
       "banner",
       file,
     ),
-},
+  },
+
+  platform: {
+    activity: (limit = 30) => get<ApiActivityEvent[]>(`/platform/activity?limit=${limit}`),
+    progression: (userId: number) => get<ApiProgression>(`/platform/players/${userId}/progression`),
+    mappingStats: () => get<{ submissions: number; approved: number; votes_received: number; rounds: number }>('/platform/mapping-stats'),
+    recap: () => get<{ roundNumber: number; month: string; year: number; winner: { title: string; artist: string; difficultyName: string; coverUrl: string } | null; winnerVoteCount: number | null; totalVotes: number | null; archiveAt: string | null } | null>('/platform/recap'),
+    compare: (a: string, b: string) => get<{ platform: Array<{ user_id: number; username: string; osu_id: string; avatar_url: string | null; global_rank: number | null; dzpp: number; rounds: number; wins: number; best: number | null }>; osu: Array<{ id: number; username: string; country: string; avatarUrl: string; globalRank: number | null }> }>(`/platform/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`),
+  },
 
   // ── Health ─────────────────────────────────────────────────────────────────
   health: () => get<{ ok: boolean }>("/health"),

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { api } from "../../api/client";
+import { api, type ApiRound, type ApiRoundDetail } from "../../api/client";
 
 // ── Seeded triangle background ────────────────────────────────────────────────
 function sr(s: number) {
@@ -95,7 +95,7 @@ const PHASE4 = [
 const OSU_DZPP = [
   { q: "What is osu!dzpp?",       detail: "Community platform where Algerian players select challenges and compete for dzpp and ranking position." },
   { q: "Who is it for?",          detail: "Algerian osu! players who are looking for a different way of engagement or competition." },
-  { q: "What makes it different?", detail: "A separate competitive layer built around community challenges. Performance points are converted through challenge plays. DZPP is a currency usable to buy digital goods and items available in the shop." },
+  { q: "What makes it different?", detail: "A separate competitive layer built around community challenges. Performance points are converted through challenge plays. DZPP is the site's competitive ranking score; it is separate from the spendable DZP shop currency." },
   { q: "What is the prize?",      detail: "The prize is one month of osu!supporter for the round winner." },
 ];
 
@@ -120,7 +120,7 @@ const ROUGH_EDGES = [
   { label: "Submit & Vote", detail: "Phase-gated — each action is only available in its designated window." },
   { label: "Play challenges", detail: "Playing a challenge does not require using the challenge requirement to earn engagement dzpp." },
   { label: "Track Ranking", detail: "Ranking is based on dzpp and is sortable by all time, yearly, and seasonally." },
-  { label: "Buy Items", detail: "Work in progress — the shop will let you spend dzpp on digital goods." },
+  { label: "Buy Items", detail: "The shop uses DZP, a separate spendable currency. DZPP remains your competitive ranking score." },
   { label: "Archive", detail: "Users can access completed rounds, winner information, challenge leaderboards, and participants." },
 ];
 
@@ -131,7 +131,7 @@ const FAQ = [
   { q: "What happens if my submission is rejected?", a: "Admins will reject submissions with vague or unclear challenge descriptions. You are free to revise and resubmit during the submission phase." },
   { q: "Can I change my vote after submitting it?",  a: "Yes. You can change your vote at any time before the voting phase closes on the 14th." },
   { q: "Can I vote for my own submission?",          a: "No. Self-voting is not allowed. Your own submission will not appear as a voteable option for you." },
-  { q: "What is dzpp?",                              a: "dzpp (DZ Performance Points) is the site's own point system. Playing challenges earns you dzpp based on your performance, which accumulates into your ranking and can be spent in the shop." },
+  { q: "What is dzpp?",                              a: "dzpp (DZ Performance Points) is the site's competitive ranking score. Challenge performance contributes to your cumulative ranking; dzpp is not the spendable shop currency." },
   { q: "What is the prize for winning?",             a: "The player whose submission wins the vote receives one month of osu!supporter, gifted directly to their osu! account." },
   { q: "What is the challenge phase?",               a: "After voting closes, the winning beatmap becomes the monthly challenge. Players compete on it using the required mods and challenge type. Submitting any score earns dzpp for engagement; only qualified scores (correct mods + challenge type) compete for placement." },
   { q: "What counts as a Full Combo in a Full Combo challenge?", a: "A Full Combo with zero misses. A single-break (slider-break) does not disqualify you, but a miss does." },
@@ -142,16 +142,6 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 // ── Countdown helpers ─────────────────────────────────────────────────────────
-// Phase 1 ends 7th, Phase 2 ends 14th — compute next deadline from today
-function getNextDeadline() {
-  const now = new Date();
-  const day = now.getDate();
-  const y = now.getFullYear();
-  const m = now.getMonth();
-  if (day <= 7)  return { label: "SUBMISSION PHASE",  end: new Date(y, m, 7,  23, 59, 59) };
-  if (day <= 14) return { label: "VOTING PHASE",       end: new Date(y, m, 14, 23, 59, 59) };
-  return            { label: "CHALLENGE PHASE",        end: new Date(y, m + 1, 1, 0, 0, 0) };
-}
 function fmtTime(ms: number) {
   const s = Math.max(0, Math.floor(ms / 1000));
   const d = Math.floor(s / 86400);
@@ -203,7 +193,7 @@ function Dzpp() {
           lineHeight: 1.5,
         }}>
           <strong style={{ color: "#ffd700" }}>DZ Performance Points</strong><br />
-          The site's ranking currency — earned by playing challenges
+          The site's competitive ranking score — earned through challenges
         </span>
       )}
     </span>
@@ -280,6 +270,10 @@ export default function LandingPage() {
   const [openFaq, setOpenFaq]           = useState<number | null>(null);
   const [timeLeft, setTimeLeft]         = useState(fmtTime(0));
   const [phaseLabel, setPhaseLabel]     = useState("");
+  const [round, setRound]               = useState<ApiRound | null>(null);
+  const [roundLoaded, setRoundLoaded]   = useState(false);
+  const [archiveRounds, setArchiveRounds] = useState<ApiRoundDetail[]>([]);
+  const [archiveLoaded, setArchiveLoaded] = useState(false);
 
 const [stats, setStats] = useState({
   players: 0,
@@ -289,17 +283,65 @@ const [stats, setStats] = useState({
   winners: 0,
 });
 
+  // The landing page must use the server's actual round schedule. The old implementation
+  // inferred phases from the calendar, which becomes wrong as soon as an administrator
+  // advances or extends a phase.
+  useEffect(() => {
+    let cancelled = false;
+
+    void api.rounds.current().then((result) => {
+      if (cancelled) return;
+      setRound(result.ok ? result.data : null);
+      setRoundLoaded(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void api.rounds.list().then((result) => {
+      if (cancelled) return;
+      if (result.ok) {
+        setArchiveRounds(result.data.filter((item) => item.phase === "ended").slice(0, 5));
+      }
+      setArchiveLoaded(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Countdown tick
   useEffect(() => {
     function tick() {
-      const { label, end } = getNextDeadline();
+      if (!roundLoaded) return;
+
+      const phaseEndsAt = round?.phase === "submission"
+        ? round.submissionEndsAt
+        : round?.phase === "voting"
+          ? round.votingEndsAt
+          : round?.phase === "challenge"
+            ? round.challengeEndsAt
+            : null;
+
+      const label = round?.phase === "submission"
+        ? "SUBMISSION PHASE"
+        : round?.phase === "voting"
+          ? "VOTING PHASE"
+          : round?.phase === "challenge"
+            ? "CHALLENGE PHASE"
+            : "NO ACTIVE PHASE";
+
       setPhaseLabel(label);
-      setTimeLeft(fmtTime(end.getTime() - Date.now()));
+      setTimeLeft(phaseEndsAt ? fmtTime(new Date(phaseEndsAt).getTime() - Date.now()) : fmtTime(0));
     }
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [round, roundLoaded]);
 
 useEffect(() => {
   let cancelled = false;
@@ -315,6 +357,13 @@ useEffect(() => {
 }, []);
 
   const { d, h, min, sec } = timeLeft;
+  const activePhaseId = round?.phase === "submission"
+    ? 1
+    : round?.phase === "voting"
+      ? 2
+      : round?.phase === "challenge"
+        ? 3
+        : null;
 
   return (
     <div style={{
@@ -332,6 +381,7 @@ useEffect(() => {
         .db-phases  { grid-template-columns: repeat(4, 1fr); }
         .db-phase4  { grid-template-columns: repeat(4, 1fr); }
         .db-edges   { grid-template-columns: repeat(3, 1fr); }
+        .db-archive-row { grid-template-columns: 0.7fr 2fr 1.3fr 0.8fr; }
 
         @media (max-width: 1100px) {
           .db-stats  { grid-template-columns: repeat(3, 1fr); }
@@ -345,6 +395,8 @@ useEffect(() => {
           .db-phases { grid-template-columns: 1fr; }
           .db-phase4 { grid-template-columns: 1fr; }
           .db-edges  { grid-template-columns: 1fr; }
+          .db-archive-row { grid-template-columns: 0.6fr 2fr 0.8fr; }
+          .db-archive-row > :nth-child(3) { display: none; }
         }
 
         .faq-row { transition: background 0.15s; }
@@ -378,7 +430,7 @@ useEffect(() => {
             boxShadow: "0 0 8px #ff9500", display: "inline-block", flexShrink: 0,
           }} />
           <span style={{ fontSize: "11px", fontWeight: 700, fontFamily: '"JetBrains Mono", monospace', color: "#ff9500", letterSpacing: "0.08em" }}>
-            {phaseLabel} OPEN
+            {roundLoaded ? (round ? `${phaseLabel} OPEN` : "NO ACTIVE ROUND") : "LOADING ROUND STATUS"}
           </span>
           <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)", fontFamily: '"JetBrains Mono", monospace' }}>
             — closes in
@@ -410,13 +462,13 @@ useEffect(() => {
         </div>
 
         {/* Right — CTA */}
-        <a href="/submit" style={{
-          background: "#ff9500", color: "#0a1240", borderRadius: "4px",
+        <a href="/submit" aria-disabled={!round || round.phase !== "submission"} style={{
+          background: !round || round.phase !== "submission" ? "rgba(255,255,255,0.08)" : "#ff9500", color: !round || round.phase !== "submission" ? "rgba(255,255,255,0.35)" : "#0a1240", borderRadius: "4px",
           padding: "5px 14px", fontSize: "11px", fontWeight: 900,
           fontFamily: '"JetBrains Mono", monospace', letterSpacing: "0.06em",
           textDecoration: "none", whiteSpace: "nowrap",
         }}>
-          Submit now →
+          {round?.phase === "submission" ? "Submit now →" : "Submission closed"}
         </a>
       </div>
 
@@ -442,8 +494,7 @@ useEffect(() => {
               }}>pp</span>
             </div>
             <p style={{ margin: 0, color: "rgba(255,255,255,0.4)", fontSize: "12px", fontFamily: '"JetBrains Mono", monospace' }}>
-              Seasonal Beatmap Bounty · Algerian osu! community · Release Date:{" "}
-              <span style={{ color: "#4499dd" }}>Thursday 1st October 2026</span>
+              Seasonal Beatmap Bounty · Algerian osu! community · Live round data
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
@@ -465,10 +516,10 @@ useEffect(() => {
                 LAST UPDATED
               </div>
               <div style={{ fontSize: "17px", fontFamily: '"JetBrains Mono", monospace', color: "#88cc44", fontWeight: 700 }}>
-                2026-09-14
+                {round ? `${round.month} ${round.year}` : "—"}
               </div>
               <div style={{ fontSize: "10px", color: "rgba(136,204,68,0.6)", fontFamily: '"JetBrains Mono", monospace', marginTop: "2px" }}>
-                ver 3.0.1 ✓
+                {round ? `Round ${round.roundNumber} · live` : "Round status unavailable"}
               </div>
             </div>
           </div>
@@ -625,23 +676,34 @@ useEffect(() => {
         {/* ── Phase cards ── */}
         <div className="db-phases" style={{ display: "grid", gap: "14px", marginBottom: "20px" }}>
           {PHASES.map((phase) => {
+            const isActive = phase.id === activePhaseId;
+            const status = phase.id === 0
+              ? "in-progress"
+              : activePhaseId === null
+                ? "upcoming"
+                : activePhaseId === phase.id
+                  ? "in-progress"
+                  : phase.id < activePhaseId
+                    ? "done"
+                    : "upcoming";
+            const viewPhase = { ...phase, active: isActive, status: status as Phase["status"] };
             const isHovered = hoveredPhase === phase.id;
             return (
               <div
-                key={phase.id}
+                key={viewPhase.id}
                 className="phase-card"
                 onMouseEnter={() => setHoveredPhase(phase.id)}
                 onMouseLeave={() => setHoveredPhase(null)}
                 style={{
                   background: "rgba(8,13,50,0.78)", backdropFilter: "blur(10px)",
-                  border: `1px solid ${phase.color}${phase.active ? "55" : "28"}`,
-                  borderTop: `3px solid ${phase.color}`,
+                  border: `1px solid ${viewPhase.color}${viewPhase.active ? "55" : "28"}`,
+                  borderTop: `3px solid ${viewPhase.color}`,
                   borderRadius: "8px", padding: "16px",
                   display: "flex", flexDirection: "column",
-                  boxShadow: phase.active
-                    ? `0 0 20px ${phase.color}20, 0 2px 10px rgba(0,0,0,0.3)`
+                  boxShadow: viewPhase.active
+                    ? `0 0 20px ${viewPhase.color}20, 0 2px 10px rgba(0,0,0,0.3)`
                     : isHovered
-                      ? `0 6px 28px ${phase.color}25`
+                      ? `0 6px 28px ${viewPhase.color}25`
                       : `0 2px 10px rgba(0,0,0,0.3)`,
                   transform: isHovered ? "translateY(-2px)" : "none",
                   cursor: "default",
@@ -650,32 +712,32 @@ useEffect(() => {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "9px" }}>
                   <div>
                     <div style={{ fontSize: "9px", color: phase.color, fontFamily: '"JetBrains Mono", monospace', fontWeight: 800, letterSpacing: "0.14em", marginBottom: "3px" }}>
-                      {phase.label}{phase.active ? " · NOW" : ""}
+                      {viewPhase.label}{viewPhase.active ? " · NOW" : ""}
                     </div>
-                    <div style={{ fontSize: "14px", fontWeight: 700, lineHeight: 1.25 }}>{phase.title}</div>
+                    <div style={{ fontSize: "14px", fontWeight: 700, lineHeight: 1.25 }}>{viewPhase.title}</div>
                   </div>
-                  <StatusBadge status={phase.status} color={phase.color} />
+                  <StatusBadge status={viewPhase.status} color={viewPhase.color} />
                 </div>
                 <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)", fontFamily: '"JetBrains Mono", monospace', marginBottom: "12px" }}>
-                  {phase.dates}
+                  {viewPhase.dates}
                 </div>
                 {/* Day-based progress bar */}
-                {phase.totalDays > 0 ? (() => {
+                {viewPhase.totalDays > 0 ? (() => {
                   const today = new Date().getDate();
-                  const rawPct = phase.active
-                    ? Math.min(100, Math.max(0, Math.round(((today - phase.startDay) / phase.totalDays) * 100)))
-                    : phase.status === "done" || phase.status === "mostly-done" ? 100 : 0;
-                  const daysElapsed = phase.active ? Math.max(0, today - phase.startDay) : (rawPct === 100 ? phase.totalDays : 0);
-                  const daysLeft = phase.active ? Math.max(0, phase.endDay - today + 1) : (rawPct === 0 ? phase.totalDays : 0);
+                  const rawPct = viewPhase.active
+                    ? Math.min(100, Math.max(0, Math.round(((today - viewPhase.startDay) / viewPhase.totalDays) * 100)))
+                    : viewPhase.status === "done" ? 100 : 0;
+                  const daysElapsed = viewPhase.active ? Math.max(0, today - viewPhase.startDay) : (rawPct === 100 ? viewPhase.totalDays : 0);
+                  const daysLeft = viewPhase.active ? Math.max(0, viewPhase.endDay - today + 1) : (rawPct === 0 ? viewPhase.totalDays : 0);
                   return (
                     <div style={{ marginBottom: "14px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px", alignItems: "flex-end" }}>
                         <div style={{ display: "flex", gap: "10px", alignItems: "baseline" }}>
                           <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.38)", fontFamily: '"JetBrains Mono", monospace' }}>
-                            {phase.active ? `day ${daysElapsed + 1} of ${phase.totalDays}` : rawPct === 0 ? `${phase.totalDays} days` : "complete"}
+                            {viewPhase.active ? `day ${daysElapsed + 1} of ${viewPhase.totalDays}` : rawPct === 0 ? `${viewPhase.totalDays} days` : "complete"}
                           </span>
-                          {phase.active && daysLeft > 0 && (
-                            <span style={{ fontSize: "9px", color: `${phase.color}bb`, fontFamily: '"JetBrains Mono", monospace', fontWeight: 700 }}>
+                          {viewPhase.active && daysLeft > 0 && (
+                            <span style={{ fontSize: "9px", color: `${viewPhase.color}bb`, fontFamily: '"JetBrains Mono", monospace', fontWeight: 700 }}>
                               {daysLeft}d left
                             </span>
                           )}
@@ -695,13 +757,13 @@ useEffect(() => {
                             <div
                               key={di}
                               style={{
-                                flex: 1, height: "5px", borderRadius: "2px",
-                                background: filled
-                                  ? phase.color
-                                  : isCurrent
-                                    ? `${phase.color}66`
+                            flex: 1, height: "5px", borderRadius: "2px",
+                            background: filled
+                                  ? viewPhase.color
+                                    : isCurrent
+                                    ? `${viewPhase.color}66`
                                     : "rgba(255,255,255,0.07)",
-                                boxShadow: filled ? `0 0 4px ${phase.color}60` : isCurrent ? `0 0 6px ${phase.color}80` : "none",
+                                boxShadow: filled ? `0 0 4px ${viewPhase.color}60` : isCurrent ? `0 0 6px ${viewPhase.color}80` : "none",
                                 transition: "background 0.3s",
                               }}
                             />
@@ -717,19 +779,19 @@ useEffect(() => {
                       <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.38)", fontFamily: '"JetBrains Mono", monospace' }}>eligibility check</span>
                       <span style={{ fontSize: "11px", color: phase.color, fontFamily: '"JetBrains Mono", monospace', fontWeight: 800 }}>ongoing</span>
                     </div>
-                    <div style={{ height: "5px", borderRadius: "2px", background: `linear-gradient(90deg, ${phase.color}, ${phase.color}44)`, boxShadow: `0 0 8px ${phase.color}50` }} />
+                    <div style={{ height: "5px", borderRadius: "2px", background: `linear-gradient(90deg, ${viewPhase.color}, ${viewPhase.color}44)`, boxShadow: `0 0 8px ${viewPhase.color}50` }} />
                   </div>
                 )}
                 {/* Description */}
                 <div style={{ flex: 1, fontSize: "11px", color: "rgba(255,255,255,0.48)", lineHeight: 1.65, marginBottom: "13px" }}>
-                  {phase.desc.split(/(dzpp)/gi).map((part, pi) =>
+                  {viewPhase.desc.split(/(dzpp)/gi).map((part, pi) =>
                     /^dzpp$/i.test(part) ? <Dzpp key={pi} /> : part
                   )}
                 </div>
                 {/* Done when */}
-                <div style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${phase.color}18`, borderLeft: `2px solid ${phase.color}55`, borderRadius: "4px", padding: "8px 10px" }}>
-                  <div style={{ fontSize: "9px", color: phase.color, fontFamily: '"JetBrains Mono", monospace', letterSpacing: "0.12em", fontWeight: 800, marginBottom: "4px" }}>DONE WHEN</div>
-                  <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.42)", lineHeight: 1.55 }}>{phase.doneWhen}</div>
+                <div style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${viewPhase.color}18`, borderLeft: `2px solid ${viewPhase.color}55`, borderRadius: "4px", padding: "8px 10px" }}>
+                  <div style={{ fontSize: "9px", color: viewPhase.color, fontFamily: '"JetBrains Mono", monospace', letterSpacing: "0.12em", fontWeight: 800, marginBottom: "4px" }}>DONE WHEN</div>
+                  <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.42)", lineHeight: 1.55 }}>{viewPhase.doneWhen}</div>
                 </div>
               </div>
             );
@@ -792,33 +854,60 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* ── Archive placeholder ── */}
+        {/* ── Archive ── */}
         <div style={{ marginTop: "24px" }}>
           <SectionDivider label="ARCHIVE" />
           <div style={{
             background: "rgba(8,13,50,0.6)", border: "1px solid rgba(255,255,255,0.07)",
             borderRadius: "8px", overflow: "hidden",
           }}>
-            {/* Table header */}
-            <div style={{
-              display: "grid", gridTemplateColumns: "1fr 2fr 1fr 1fr",
-              padding: "10px 20px", background: "rgba(255,255,255,0.04)",
-              borderBottom: "1px solid rgba(255,255,255,0.06)",
-            }}>
-              {["Round", "Winning Beatmap", "Submitted by", "Players"].map(h => (
-                <div key={h} style={{ fontSize: "9px", fontFamily: '"JetBrains Mono", monospace', fontWeight: 800, letterSpacing: "0.12em", color: "rgba(255,255,255,0.3)" }}>{h}</div>
-              ))}
-            </div>
-            {/* Empty state */}
-            <div style={{ padding: "36px 20px", textAlign: "center" }}>
-              <div style={{ fontSize: "28px", marginBottom: "10px" }}>🏆</div>
-              <div style={{ fontSize: "13px", fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: "6px" }}>
-                Round 1 results will appear here
+            {!archiveLoaded ? (
+              <div style={{ padding: "28px 20px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: "11px", fontFamily: '"JetBrains Mono", monospace' }}>
+                Loading completed rounds…
               </div>
-              <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", fontFamily: '"JetBrains Mono", monospace' }}>
-                First round closes 14 Sep 2026 — check back then
+            ) : archiveRounds.length === 0 ? (
+              <div style={{ padding: "36px 20px", textAlign: "center" }}>
+                <div style={{ fontSize: "28px", marginBottom: "10px" }}>🏆</div>
+                <div style={{ fontSize: "13px", fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: "6px" }}>
+                  No completed rounds yet
+                </div>
+                <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", fontFamily: '"JetBrains Mono", monospace' }}>
+                  Completed rounds will appear here automatically.
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="db-archive-row" style={{ display: "grid", padding: "10px 20px", background: "rgba(255,255,255,0.04)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                  {["Round", "Winning Beatmap", "Submitted by", "Players"].map(h => (
+                    <div key={h} style={{ fontSize: "9px", fontFamily: '"JetBrains Mono", monospace', fontWeight: 800, letterSpacing: "0.12em", color: "rgba(255,255,255,0.3)" }}>{h}</div>
+                  ))}
+                </div>
+                {archiveRounds.map((item) => (
+                  <a key={item.id} href="/archive" className="db-archive-row" style={{ display: "grid", padding: "13px 20px", textDecoration: "none", color: "inherit", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                    <span style={{ fontSize: "11px", fontFamily: '"JetBrains Mono", monospace', color: "#ffd700", fontWeight: 800 }}>#{item.roundNumber}</span>
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "rgba(255,255,255,0.78)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {item.winner?.title ?? "No recorded winner"}
+                      </span>
+                      <span style={{ display: "block", fontSize: "9px", color: "rgba(255,255,255,0.3)", fontFamily: '"JetBrains Mono", monospace' }}>
+                        {item.month} {item.year}{item.totalVotes !== null ? ` · ${item.totalVotes} votes` : ""}
+                      </span>
+                    </span>
+                    <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.45)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {item.winner?.submittedByName ?? "—"}
+                    </span>
+                    <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.45)", fontFamily: '"JetBrains Mono", monospace' }}>
+                      {item.participants}
+                    </span>
+                  </a>
+                ))}
+                <div style={{ padding: "12px 20px", textAlign: "right" }}>
+                  <a href="/archive" style={{ color: "#4499dd", fontSize: "10px", fontFamily: '"JetBrains Mono", monospace', fontWeight: 700, textDecoration: "none" }}>
+                    View full archive →
+                  </a>
+                </div>
+              </>
+            )}
           </div>
         </div>
 

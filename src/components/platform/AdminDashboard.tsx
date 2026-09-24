@@ -2570,6 +2570,8 @@ if (rows.ok) {
 
 function ConfigTab() {
   const [config, setConfig] = useState<ApiAdminConfig | null>(null);
+  const [discordBusy, setDiscordBusy] = useState(false);
+  const [discordMessage, setDiscordMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -2654,6 +2656,32 @@ setConfig(c.data);
           submission limits in Beatmap Rules, mods and challenge types in Challenge, eligibility
           in Eligibility and Users.
         </p>
+      </Section>
+
+      <Section
+        title="Discord Integration"
+        description="Round lifecycle announcements use the server-side DISCORD_WEBHOOK. The webhook itself is never exposed in the browser."
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-bold text-white">Connection test</p>
+            <p className="text-xs text-slate-500 mt-1">Send a single test message to the configured channel.</p>
+          </div>
+          <button
+            type="button"
+            disabled={!config?.discordConfigured || discordBusy}
+            onClick={async () => {
+              setDiscordBusy(true); setDiscordMessage(null);
+              const result = await api.admin.discordTest();
+              setDiscordMessage(result.ok ? 'Test announcement sent.' : result.error);
+              setDiscordBusy(false);
+            }}
+            className="rounded-lg bg-indigo-500/15 border border-indigo-500/25 px-3 py-2 text-xs font-black text-indigo-300 hover:bg-indigo-500/25 disabled:opacity-40"
+          >
+            {discordBusy ? 'Sending…' : 'Send test'}
+          </button>
+        </div>
+        {discordMessage && <p className="text-xs text-slate-400 mt-3">{discordMessage}</p>}
       </Section>
     </div>
   );

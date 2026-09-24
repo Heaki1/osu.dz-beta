@@ -598,6 +598,28 @@ function CareerStats({
   );
 }
 
+function DzppHistoryGraph({ rounds }: { rounds: ApiPlayerDzppRound[] }) {
+  const ordered = [...rounds].reverse();
+  let total = 0;
+  const points = ordered.map((round, index) => {
+    total += round.finalDzpp;
+    return { x: ordered.length <= 1 ? 0 : index / (ordered.length - 1), y: total, round: round.roundNumber, gain: round.finalDzpp };
+  });
+  if (points.length === 0) return null;
+  const max = Math.max(...points.map((p) => p.y), 1);
+  const width = 720; const height = 180; const pad = 18;
+  const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${pad + p.x * (width - pad * 2)} ${height - pad - (p.y / max) * (height - pad * 2)}`).join(' ');
+  return <section className="mb-4 overflow-hidden rounded-md border border-[#292d45] bg-[#0d1220] p-4">
+    <div className="flex items-center justify-between mb-3"><div><p className="text-[10px] uppercase tracking-widest text-slate-500 font-mono">DZPP history</p><p className="text-sm font-black text-white">Cumulative progression</p></div><span className="text-[10px] font-mono text-amber-400">{total.toLocaleString()} DZPP</span></div>
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-44" role="img" aria-label="Cumulative DZPP history">
+      <path d={`M ${pad} ${height - pad} L ${width - pad} ${height - pad}`} stroke="currentColor" className="text-slate-800" />
+      <path d={path} fill="none" stroke="currentColor" strokeWidth="3" className="text-amber-400" />
+      {points.map((p) => <circle key={p.round} cx={pad + p.x * (width - pad * 2)} cy={height - pad - (p.y / max) * (height - pad * 2)} r="4" className="fill-amber-400" />)}
+    </svg>
+    <div className="flex justify-between text-[9px] font-mono text-slate-600"><span>R{points[0].round}</span><span>{points.length > 1 ? `R${points[points.length - 1].round}` : 'Current'}</span></div>
+  </section>;
+}
+
 function ProfileNumber({
   label,
   value,
@@ -1389,6 +1411,7 @@ export default function PlayerProfilePage({ username, onBack }: PlayerProfilePag
             historyFailed ? <ErrorState message="Could not load the player's challenge history." /> : <LoadingState message="Loading challenge history…" />
           ) : (
             <>
+              <DzppHistoryGraph rounds={rounds} />
               <div className="mb-3 grid min-w-0 items-stretch gap-3 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1.05fr)]">
                 <TopPlays performances={top100} />
                 <History rounds={rounds} />

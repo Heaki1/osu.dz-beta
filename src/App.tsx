@@ -40,6 +40,7 @@ const PlatformSubmitPage = lazy(() => import('./components/platform/PlatformSubm
 const ArchivePage = lazy(() => import('./components/platform/ArchivePage').then((m) => ({ default: m.ArchivePage }))); 
 const RankingsPage = lazy(() => import('./components/platform/RankingsPage').then((m) => ({ default: m.RankingsPage })));
 const PlayerProfilePage = lazy(() => import('./components/platform/PlayerProfilePage'));
+const PlayerComparePage = lazy(() => import('./components/platform/PlayerComparePage').then((m) => ({ default: m.PlayerComparePage })));
 import {
   api,
   ApiChallengeBeatmap,
@@ -64,6 +65,7 @@ import { Beatmap, Phase, PlatformPage } from './types';
 const getPageFromPath = (): PlatformPage => {
   // â”€â”€ NEW: detect /player/:username before the existing switch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (window.location.pathname.startsWith('/player/')) return 'player';
+  if (window.location.pathname === '/compare') return 'compare';
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   switch (window.location.pathname) {
@@ -382,14 +384,23 @@ export default function App() {
     }
     setActionError(null);
 
-    setFavorites((current) => {
-      if (favoritedIds.has(difficultyId)) {
-        return current.filter((favorite) => favorite.difficultyId !== difficultyId);
-      }
+    const wasFavorited = favoritedIds.has(difficultyId);
 
-      return [result.data.favorite, ...current.filter(
-        (favorite) => favorite.difficultyId !== difficultyId,
-      )];
+    if (!wasFavorited) {
+      if (!('favorite' in result.data)) {
+        setActionError('Favorite could not be added because the API returned an unexpected response.');
+        return;
+      }
+      const addedFavorite: ApiFavorite = result.data.favorite;
+      setFavorites((current) => [
+        addedFavorite,
+        ...current.filter((favorite) => favorite.difficultyId !== difficultyId),
+      ]);
+      return;
+    }
+
+    setFavorites((current) => {
+      return current.filter((favorite) => favorite.difficultyId !== difficultyId);
     });
   };
 
@@ -547,6 +558,7 @@ export default function App() {
           />
         )}
         {platformPage === 'archive' && <ArchivePage />}
+        {platformPage === 'compare' && <PlayerComparePage />}
 
         {/* â”€â”€ NEW: player profile page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {platformPage === 'player' && profileUsername !== null && (

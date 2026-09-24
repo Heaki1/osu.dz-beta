@@ -83,8 +83,10 @@ import {
   announceVotingSkipped,
   announceWinner,
   isConfigured,
+  announce,
 } from '../services/discord.js';
 import { listForRound as listVotes, toApiVoteAudit } from '../repo/votes.js';
+import { addActivity } from '../repo/platform.js';
 import {
   qualifies,
   toApiChallengeScore,
@@ -181,6 +183,7 @@ router.patch('/round/phase', async (req, res) => {
     // Only when the phase actually moved: this endpoint is also how a deadline gets
     // rewritten, and canTransition allows from === to for exactly that reason.
     if (updated.phase !== open.phase) announcePhase(updated, updated.phase, false);
+    if (updated.phase !== open.phase) void addActivity('round_phase_changed', { phase: updated.phase }, req.user?.id, updated.id).catch(() => undefined);
     res.json({ ok: true, round: toApiRound(updated) });
   } catch (err) {
     fail(res, err, 'phase update');
@@ -328,6 +331,7 @@ router.post('/round/winner', async (req, res) => {
         ? null
         : await findSubmission(outcome.round.winning_submission_id);
     announceWinner(outcome.round, entry);
+    void addActivity('round_winner_approved', { submissionId: outcome.round.winning_submission_id, title: entry?.title ?? null }, admin.id, outcome.round.id).catch(() => undefined);
 
     res.json({ ok: true, round: toApiRound(outcome.round) });
   } catch (err) {
@@ -1085,6 +1089,15 @@ router.get('/config', (_req, res) => {
     secureCookies: env.useSecureCookies,
     adminCount: env.adminOsuIds.length,
   });
+});
+
+router.post('/discord/test', (_req, res) => {
+  if (!isConfigured()) {
+    res.status(409).json({ error: 'DISCORD_WEBHOOK is not configured on the server' });
+    return;
+  }
+  announce('**osu!DZ** — Discord integration test from the Admin Dashboard.');
+  res.json({ ok: true });
 });
 
 // ── Result correction (D4) ───────────────────────────────────────────────────

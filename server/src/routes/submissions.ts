@@ -7,6 +7,7 @@
 // and the row must be built from a fresh read.
 
 import { Router } from 'express';
+import { addActivity } from '../repo/platform.js';
 import type { Response } from 'express';
 import { requireAuth, requireCanSubmit } from '../middleware/auth.js';
 import { parsePositiveInt } from '../lib/validation.js';
@@ -280,6 +281,7 @@ if (rules.maxSubmissionsPerUser !== null &&
       challengeRequirement,
     });
 
+    void addActivity('submission_created', { title: row.title, artist: row.artist, difficultyName: row.difficulty_name }, user.id, round.id).catch(() => undefined);
     res.status(201).json(toApiSubmission(row));
 } catch (err) {
   fail(res, err, 'submit');

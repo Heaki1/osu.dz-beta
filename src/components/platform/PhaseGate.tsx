@@ -27,6 +27,7 @@ const LANDING_LABEL: Record<PlatformPage, string> = {
   player: 'Player',
   admin: 'Go to Admin',
   archive: 'Go to Archive',
+  compare: 'Compare Players',
 };
 
 interface PhaseGateProps {

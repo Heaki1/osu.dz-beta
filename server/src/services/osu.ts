@@ -74,6 +74,16 @@ export async function fetchMe(accessToken: string): Promise<OsuMe> {
   return me;
 }
 
+export async function fetchPublicUser(username: string): Promise<OsuMe> {
+  const res = await fetch(`${API_BASE}/users/${encodeURIComponent(username)}/osu`, {
+    headers: { Authorization: `Bearer ${await getAppToken()}`, Accept: 'application/json' },
+  });
+  if (!res.ok) throw new Error(`osu! GET /users/${username}/osu failed: ${res.status}`);
+  const user = (await res.json()) as OsuMe;
+  if (!Number.isInteger(user.id) || !user.username) throw new Error('osu! user response was invalid');
+  return user;
+}
+
 // ── Beatmap lookup (client-credentials) ──────────────────────────────────────
 
 /** Ranked statuses a submission is allowed to use, per docs/my_plan.txt. */

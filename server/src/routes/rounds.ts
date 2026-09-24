@@ -19,6 +19,15 @@ import { frozenDzpp } from '../repo/dzpp.js';
 
 const router = Router();
 
+function archiveReady(rows: RoundRow[], index: number, now = Date.now()): boolean {
+  const row = rows[index];
+  if (row.phase !== 'ended') return true;
+  // An ended round is a recap first. It enters the archive one day after the next
+  // round starts (the next round's creation timestamp is its authoritative start).
+  const next = rows.find((candidate, i) => i < index && candidate.round_number > row.round_number);
+  return next !== undefined && now >= next.created_at.getTime() + 24 * 60 * 60 * 1000;
+}
+
 function dbDown(res: Response, err: unknown, where: string): void {
   console.error(`[rounds] ${where} failed:`, err instanceof Error ? err.message : err);
   res.status(503).json({ error: 'Database unavailable' });
@@ -112,8 +121,9 @@ const rows = await listAll();
 const ids = rows.map((row) => row.id);
     // Both are one query for the whole archive rather than one per round.
     const [counts, frozen] = await Promise.all([participantCounts(ids), frozenDzpp(ids)]);
+const visible = rows.filter((_row, index) => archiveReady(rows, index));
     const detailed = await Promise.all(
-      rows.map((row) =>
+      visible.map((row) =>
         toRoundDetail(row, counts.get(row.id) ?? 0, frozen.get(row.id) ?? new Map())
       )
     );

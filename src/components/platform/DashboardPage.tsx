@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Beatmap, Phase, PlatformPage } from '../../types';
 import { ApiChallengeBeatmap, ApiChallengeScore, ApiSubmission } from '../../api/client';
 import { api } from '../../api/client';
@@ -13,6 +13,73 @@ import {
   Trophy, Crown, Upload, ChevronRight, RefreshCw,
   CheckCircle2, AlertCircle, Clock, LogIn, X, Ban, Heart, Info, Download, Link as LinkIcon,
 } from 'lucide-react';
+
+function PersonalProgress({ user }: { user: AuthUser | null }) {
+  const [data, setData] = useState<import('../../api/client').ApiProgression | null>(null);
+  const [activity, setActivity] = useState<import('../../api/client').ApiActivityEvent[] | null>(null);
+  const [mapping, setMapping] = useState<{ submissions: number; approved: number; votes_received: number; rounds: number } | null>(null);
+  const [recap, setRecap] = useState<{
+    roundNumber: number; month: string; year: number;
+    winner: { title: string; artist: string; difficultyName: string; coverUrl: string } | null;
+    winnerVoteCount: number | null; totalVotes: number | null; archiveAt: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    let live = true;
+    void Promise.all([api.platform.progression(user.id), api.platform.activity(8), api.platform.mappingStats(), api.platform.recap()]).then(([progress, feed, stats, latestRecap]) => {
+      if (!live) return;
+      setData(progress.ok ? progress.data : null);
+      setActivity(feed.ok ? feed.data : null);
+      setMapping(stats.ok ? stats.data : null);
+      setRecap(latestRecap.ok ? latestRecap.data : null);
+    });
+    return () => { live = false; };
+  }, [user]);
+
+  if (!user || !data) return null;
+  const p = data.progression;
+  const percent = Math.round(p.levelProgress * 100);
+  const activityText = (type: string, payload: Record<string, unknown>) => {
+    if (type === 'submission_created') return `Submitted ${String(payload.title ?? 'a beatmap')}`;
+    if (type === 'vote_cast') return 'Cast a round vote';
+    if (type === 'challenge_score_imported') return `Imported ${Number(payload.score ?? 0).toLocaleString()} score`;
+    if (type === 'round_winner_approved') return `Round winner approved: ${String(payload.title ?? 'challenge')}`;
+    if (type === 'round_phase_changed') return `Round moved to ${String(payload.phase ?? 'a new phase')}`;
+    return type.split('_').join(' ');
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-5 mb-8">
+      <section className="rounded-2xl border border-slate-800 bg-[#0d1526] p-5">
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div><p className="text-[10px] uppercase tracking-widest text-slate-600 font-mono">Player Progression</p><p className="text-lg font-black text-white">Level {p.level}</p></div>
+          <span className="text-xs font-mono text-amber-400">{p.dzpp.toLocaleString()} DZPP</span>
+        </div>
+        <div className="h-2 rounded-full bg-slate-900 overflow-hidden"><div className="h-full bg-amber-400" style={{ width: `${percent}%` }} /></div>
+        <div className="flex justify-between mt-2 text-[10px] font-mono text-slate-600"><span>{percent}% to next level</span><span>{p.nextLevelDzpp.toLocaleString()} DZPP</span></div>
+        <div className="grid grid-cols-4 gap-2 mt-5 text-center">
+          <div><p className="text-lg font-black text-white">{data.streak.currentWins}</p><p className="text-[9px] text-slate-600 uppercase">Win streak</p></div>
+          <div><p className="text-lg font-black text-white">{data.streak.bestWins}</p><p className="text-[9px] text-slate-600 uppercase">Best streak</p></div>
+          <div><p className="text-lg font-black text-white">{p.rounds}</p><p className="text-[9px] text-slate-600 uppercase">Rounds</p></div>
+          <div><p className="text-lg font-black text-white">{p.wins}</p><p className="text-[9px] text-slate-600 uppercase">Wins</p></div>
+        </div>
+      </section>
+      <section className="rounded-2xl border border-slate-800 bg-[#0d1526] p-5">
+        <div className="flex items-center justify-between mb-4"><p className="text-[10px] uppercase tracking-widest text-slate-600 font-mono">Live Activity</p><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /></div>
+        <div className="space-y-3">
+          {(activity ?? []).slice(0, 5).map((event) => <div key={event.id} className="text-xs"><p className="text-slate-300">{event.username ?? 'System'} <span className="text-slate-500">{activityText(event.type, event.payload)}</span></p><p className="text-[10px] text-slate-700 font-mono">{new Date(event.createdAt).toLocaleString()}</p></div>)}
+          {(activity ?? []).length === 0 && <p className="text-xs text-slate-600">No recent activity.</p>}
+        </div>
+      </section>
+      {mapping && <section className="rounded-2xl border border-slate-800 bg-[#0d1526] p-5 lg:col-span-2">
+        <div className="flex items-center justify-between mb-4"><p className="text-[10px] uppercase tracking-widest text-slate-600 font-mono">Mapping statistics</p><span className="text-[10px] text-slate-700 font-mono">Community-wide</span></div>
+        <div className="grid grid-cols-4 gap-3 text-center"><div><p className="text-xl font-black text-white">{mapping.submissions}</p><p className="text-[9px] uppercase text-slate-600">Submissions</p></div><div><p className="text-xl font-black text-white">{mapping.approved}</p><p className="text-[9px] uppercase text-slate-600">Approved</p></div><div><p className="text-xl font-black text-white">{mapping.votes_received}</p><p className="text-[9px] uppercase text-slate-600">Votes received</p></div><div><p className="text-xl font-black text-white">{mapping.rounds}</p><p className="text-[9px] uppercase text-slate-600">Rounds mapped</p></div></div>
+      </section>}
+      {recap && <section className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.03] p-5 lg:col-span-2"><p className="text-[10px] uppercase tracking-widest text-amber-400/70 font-mono">Round recap</p><p className="text-lg font-black text-white mt-1">Round {recap.roundNumber} · {recap.month} {recap.year}</p>{recap.winner && <p className="text-sm text-slate-400 mt-2">Winner: <span className="text-white font-bold">{recap.winner.artist} — {recap.winner.title} [{recap.winner.difficultyName}]</span></p>}<p className="text-[10px] text-slate-600 mt-3">This recap remains here until its archive window opens.</p></section>}
+    </div>
+  );
+}
 
 // ── INLINE LOGIN NUDGE ────────────────────────────────────────────────────────
 
@@ -861,14 +928,20 @@ export function DashboardPage({
   const [challengeScores, setChallengeScores] = useState<ApiChallengeScore[]>([]);
   const [challengeLoaded, setChallengeLoaded] = useState(false);
   const [myScore, setMyScore] = useState<ApiChallengeScore | null>(null);
+  const loadScoresRequestRef = useRef(0);
 
   const loadScores = useCallback(async (submissionId: number) => {
+    const requestId = ++loadScoresRequestRef.current;
     setChallengeLoaded(false);
 
     const [scores, mine] = await Promise.all([
       api.challenge.scores(submissionId),
       api.challenge.my(submissionId),
     ]);
+
+    // A player can move between challenge beatmaps before the previous requests
+    // finish. Only the latest selection is allowed to update the dashboard.
+    if (requestId !== loadScoresRequestRef.current) return;
 
     setChallengeScores(scores.ok ? scores.data : []);
     setChallengeLoaded(true);
@@ -997,6 +1070,7 @@ export function DashboardPage({
   return (
     <div className="max-w-7xl mx-auto px-6 py-8 pb-16">
       <RoundHeader round={round} countdown={countdown} />
+      <PersonalProgress user={user} />
 
       {/* ── SUBMISSION PHASE ──────────────────────────────────────────── */}
       {phase === 'submission' && (
@@ -1379,6 +1453,10 @@ export function DashboardPage({
           {/* ── SCORE + LEADERBOARD ── */}
           <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-5 items-start">
             <MyChallengeScore
+              // Each challenge beatmap owns its score-import state. Remounting on
+              // selection change prevents available scores from the previous map
+              // from remaining selectable for the new submissionId.
+              key={selectedChallengeId ?? 'none'}
               score={myRow}
               requirement={selectedBeatmap?.challengeRequirement ?? null}
               modRequirement={selectedBeatmap?.modRequirement ?? null}

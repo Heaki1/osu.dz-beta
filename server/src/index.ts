@@ -21,6 +21,7 @@ import favoritesRouter from './routes/favorites.js';
 import settingsRouter from './routes/settings.js';
 import commentsRouter from './routes/comments.js';
 import challengeChatRouter from './routes/challengeChat.js';
+import platformRouter from './routes/platform.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -62,6 +63,10 @@ app.use('/api/shop', shopRouter);
 app.use('/api/players', playersRouter);
 app.use('/api/dzp', dzpRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/platform', platformRouter);
+// Stable read-only public API namespace. The same handlers are deliberately reused so
+// the public API cannot drift from the normal application contract.
+app.use('/api/v1', platformRouter);
 
 // ── Static client (production only) ─────────────────────────────────────────
 //

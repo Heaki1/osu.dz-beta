@@ -6,6 +6,7 @@
 // Reads are public. Writing a score is gated by requireCanChallenge.
 
 import { Router } from 'express';
+import { addActivity } from '../repo/platform.js';
 import type { Response } from 'express';
 import { parsePositiveInt, parsePositiveSafeInt } from '../lib/validation.js';
 import { requireAuth, requireCanChallenge } from '../middleware/auth.js';
@@ -348,6 +349,7 @@ router.post('/scores', requireCanChallenge, importLimit, async (req, res) => {
       osuScoreId: play.osuScoreId === 0 ? null : play.osuScoreId,
     });
 
+    void addActivity('challenge_score_imported', { submissionId, score: row.score, accuracy: row.accuracy, mods: row.mods }, req.user.id, round.id).catch(() => undefined);
     res.json({ ok: true, score: toApiChallengeScore(row, 0, null, modRequirement) });
   } catch (err) {
     fail(res, err, 'import score');

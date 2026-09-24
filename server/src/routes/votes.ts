@@ -13,6 +13,7 @@
 // close voting, and a future one does not open it.
 
 import { Router } from 'express';
+import { addActivity } from '../repo/platform.js';
 import type { Response } from 'express';
 import { parsePositiveInt } from '../lib/validation.js';
 import { requireAuth, requireCanVote } from '../middleware/auth.js';
@@ -131,6 +132,7 @@ if (id === null) {
     }
 
     await cast(round.id, user.id, id);
+    void addActivity('vote_cast', { submissionId: id }, user.id, round.id).catch(() => undefined);
     res.json({ ok: true, submissionId: id });
   } catch (err) {
     // 23503 = foreign_key_violation, if the submission was deleted between the read

@@ -17,7 +17,8 @@ export type PlatformPage =
   | 'shop'
   | 'player'
   | 'admin'
-  | 'archive';
+  | 'archive'
+  | 'compare';
 
 export interface BeatmapComment {
   id: string;
@@ -70,4 +71,3 @@ export interface Beatmap {
   description?: string;
   comments?: BeatmapComment[];
 }
-
